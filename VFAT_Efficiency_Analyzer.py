@@ -8,7 +8,8 @@ import numpy as np
 parser = argparse.ArgumentParser(
                     prog='ProgramName',
                     description='takes a csv file from a run and outputs problematic chambers/vfats to json files',
-                    epilog='execution : python3 Efficiency_Analyzer_Vfat.py --input_csv input_csv.csv')
+                    epilog='execution : python3 VFAT_Efficiency_Analyzer.py --input_csv input_csv.csv')
+                    description='takes a csv file from the runs and outputs problematic chambers/vfats to a json file',
 
 parser.add_argument('-icsv', '--input_csv', type=str , help="csv of the run to be used",required=True)
 parser.add_argument('-v', '--verbose',
@@ -18,6 +19,7 @@ args = parser.parse_args()
 df = pd.read_csv(args.input_csv, index_col=0, dtype=int)
 
 run_number = args.input_csv[:args.input_csv.find('_')]
+
 #calculate efficiency per vfat 
 df["vfat_eff"] = df["matchedRecHit"]/df["propHit"]
 #get the eta partition for the vfat
