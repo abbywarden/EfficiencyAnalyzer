@@ -3,22 +3,29 @@ import argparse
 import sys
 import pandas as pd
 import numpy as np
-
+from pathlib import Path
+import re 
 
 parser = argparse.ArgumentParser(
                     prog='ProgramName',
                     description='takes a csv file from a run and outputs problematic chambers/vfats to json files',
-                    epilog='execution : python3 VFAT_Efficiency_Analyzer.py --input_csv input_csv.csv')
-                    description='takes a csv file from the runs and outputs problematic chambers/vfats to a json file',
-
+                    epilog='execution : python3 VFAT_Efficiency_Analyzer.py --input_csv input_csv.csv --output_dir /path/to/jsons')
+                   
 parser.add_argument('-icsv', '--input_csv', type=str , help="csv of the run to be used",required=True)
 parser.add_argument('-v', '--verbose',
                     action='store_true')  # on/off flag
+parser.add_argument("-o",'--output_dir', type=str, help="Output dir to store json files",required=False, default="output_jsons")
 
 args = parser.parse_args()
+
+#create folder and copy files 
+output_dir = Path(args.output_dir)
+output_dir.mkdir(parents=True, exist_ok=True)
+
+
 df = pd.read_csv(args.input_csv, index_col=0, dtype=int)
 
-run_number = args.input_csv[:args.input_csv.find('_')]
+run_number = re.findall("(\d+)_RPCMonitor", args.input_csv)[0]
 
 #calculate efficiency per vfat 
 df["vfat_eff"] = df["matchedRecHit"]/df["propHit"]
@@ -99,7 +106,7 @@ bad_ch = pd.concat([lowstats_ch,loweff_ch]).reset_index(drop=True)
 bad_ch = bad_ch.sort_values(by = ['Region', 'Chamber', 'Layer'])
 
 #put into json
-bad_ch[['Region','Chamber','Layer', 'Status']].to_json('problematic_chambers_%s.json'%run_number, orient = 'records')
+bad_ch[['Region','Chamber','Layer', 'Status']].to_json(str(output_dir) + "/problematic_chambers_%s.json"%run_number, orient = 'records')
 
 ################################ indiv. vfats ################################
 #find low stat vfats w.r.t chamber avg propHit
@@ -185,6 +192,6 @@ byeta2 = byeta2.drop(['avg_ch_eff'], axis = 1)
 
 
 bad_vfats = pd.concat([oddball_vfats, lowstats_vfats, badapple_vfats, byeta, badapple2_vfats, byeta2]).sort_values(by = ['Region', 'Chamber', 'Layer']).reset_index(drop=True)
-bad_vfats = bad_vfats.groupby(['Region', 'Chamber', 'Layer']).apply(lambda x: x.drop(['Region', 'Chamber', 'Layer'], axis=1).to_dict(orient='records')).to_json('bad_vfats_%s.json'%run_number)
+bad_vfats = bad_vfats.groupby(['Region', 'Chamber', 'Layer']).apply(lambda x: x.drop(['Region', 'Chamber', 'Layer'], axis=1).to_dict(orient='records')).to_json(str(output_dir) + "/bad_vfats_%s.json"%run_number)
 
 ##############################################################################
