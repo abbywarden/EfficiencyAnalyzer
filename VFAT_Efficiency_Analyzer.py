@@ -86,6 +86,9 @@ chamber_df = df[['Region', 'Chamber','Layer', 'avg_ch_eff', 'avg_ch_propHit']].d
 ################################## chambers ##################################
 #find chamber outliers w.r.t the entire system
 
+if args.verbose : 
+    print("opening %s"%args.input_csv)
+
 #determine low stats chambers; 
 lowstats_ch, chpropHit = find_outliers(chamber_df, 'avg_ch_propHit', 1.5)  
 ch_df_slim = drop_outliers(chamber_df, lowstats_ch) #drop before considering low eff chambers 
@@ -101,13 +104,18 @@ loweff_ch['Status'] = pd.Series(['avg chamber eff < %f'%cheff for x in range(len
 lowstats_ch["Status"] = 'avg chamber propHit < %f'%chpropHit
 loweff_ch["Status"] = 'avg chamber eff < %f'%cheff
 
+if args.verbose : 
+    print("For Run : %s, Average Chamber PropHit = %f, and Average Chamber Efficiency = %f"%(run_number, chpropHit, cheff))
+    print("Found %i chambers with average chamber prophit < %f and %i chambers with average chamber efficiency < %f"%(lowstats_ch.shape[0], chpropHit, loweff_ch.shape[0], cheff))
+ 
 #combine
 bad_ch = pd.concat([lowstats_ch,loweff_ch]).reset_index(drop=True)
 bad_ch = bad_ch.sort_values(by = ['Region', 'Chamber', 'Layer'])
 
-#put into json
-bad_ch[['Region','Chamber','Layer', 'Status']].to_json(str(output_dir) + "/problematic_chambers_%s.json"%run_number, orient = 'records')
-
+#put into csv
+bad_ch.to_csv(str(output_dir) + "/problematic_chambers_%s.csv"%run_number, sep=";", index=False)
+if args.verbose :
+    print("Output for flagged chambers stored here : %s" %str(output_dir) + "/problematic_chambers_%s.csv" %run_number)
 ################################ indiv. vfats ################################
 #find low stat vfats w.r.t chamber avg propHit
 lowstats_vfat, vfatpropHit = find_outliers(df_slim, 'propHit', 1.5)
@@ -116,6 +124,9 @@ df_slim = drop_outliers(df_slim, lowstats_vfat)
 #find vfat outliers w.r.t the entire system 
 outlier_vfat, outlier_vfateff = find_outliers(df_slim, 'vfat_eff', 1.5)
 df_slim[['outlier_vfat']] = (df_slim['vfat_eff'] < outlier_vfateff) 
+          
+if args.verbose :
+    print("Now looking for vfats (and eta partitions) in GE11 with an efficiency < %f"%outlier_vfateff)
 
 # bad_apple == 1 (only one outlier vfat in eta partition) 
 # bad_apple == 2 (2/3 vfats are outliers in eta partition)
@@ -127,11 +138,19 @@ df_slim[['bad_apple']] = df_slim.groupby(['Region', 'Chamber', 'Layer', 'eta_par
 badapple_vfats = df_slim.loc[(df_slim['bad_apple'] != 3) & (df_slim['outlier_vfat'] == True)].copy()
 badbarrel_vfats = df_slim.loc[df_slim['bad_apple'] == 3].copy()
 
+if args.verbose :
+    print("Found %i outlier vfats within GE11 and %i outlier eta partitions" % (badapple_vfats.shape[0], badbarrel_vfats.shape[0]))
+
 # drop the bad vfats from the dataframe;
 df_slim_2 = drop_outliers(df_slim, badapple_vfats)  
 df_slim_2 = drop_outliers(df_slim_2, badbarrel_vfats) 
 
+
 #round two : now look more closely at vfats by comparing to the average chamber efficiency (after removal of all above)
+
+if args.verbose :
+    print("Now looking for vfats with low efficiency compared to the given average chamber efficiency") 
+
 #first need to redo all the average calculations & vfat outliers
 df_slim_2 = df_slim_2.drop(['outlier_vfat', 'bad_apple'], axis = 1)
 df_slim_2[['avg_ch_eff', 'avg_ch_propHit']] = df_slim_2.groupby(['Region', 'Chamber', 'Layer'], as_index=True)[['vfat_eff', 'propHit']].transform(lambda x: x.mean())
@@ -153,6 +172,9 @@ df_slim_3[['ch_eff_std', 'ch_propHit_std']] = df_slim_3.groupby(['Region', 'Cham
 df_slim_3[['outlier_vfat']] = df_slim_3['vfat_eff'] < ( df_slim_3['avg_ch_eff'] - 1.5*df_slim_3['ch_eff_std'])
 
 badapple2_vfats = df_slim_3.loc[(df_slim_3['outlier_vfat'] == True)]
+
+if args.verbose :
+    print("Found %i outlier vfats within individual chambers and %i outlier eta partitions" % (badapple2_vfats.shape[0], badbarrel2_vfats.shape[0]))
 
 ##############################################################################
 
@@ -192,6 +214,7 @@ byeta2 = byeta2.drop(['avg_ch_eff'], axis = 1)
 
 
 bad_vfats = pd.concat([oddball_vfats, lowstats_vfats, badapple_vfats, byeta, badapple2_vfats, byeta2]).sort_values(by = ['Region', 'Chamber', 'Layer']).reset_index(drop=True)
-bad_vfats = bad_vfats.groupby(['Region', 'Chamber', 'Layer']).apply(lambda x: x.drop(['Region', 'Chamber', 'Layer'], axis=1).to_dict(orient='records')).to_json(str(output_dir) + "/bad_vfats_%s.json"%run_number)
-
+bad_vfats.to_csv(str(output_dir) + "/bad_vfats_%s.csv"%run_number, sep=";", index=False)
+if args.verbose :
+    print("Output for flagged vfats stored here : %s" % str(output_dir) + "/bad_vfats_%s.csv" % run_number)
 ##############################################################################
